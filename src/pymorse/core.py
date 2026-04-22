@@ -183,13 +183,13 @@ class MorseCode:
         smooth = (
             padded.astype(np.float32)
             if self.click_smooth <= 0
-            else np.correlate(padded, weights, "valid")
+            else np.correlate(padded.astype(np.float32), weights, "valid")
         )
 
         t = np.arange(smooth.size, dtype=np.float32)
         tone = np.sin(t * (self.hz * 2 * math.pi / self.sps))
 
-        return tone * smooth * self.volume
+        return (tone * smooth * self.volume).astype(np.float32)
 
     def to_audio(self, text: str) -> np.ndarray:
         return self._bool_arr_to_tone(self._morse_to_bool_arr(self.encode(text)))
@@ -212,6 +212,8 @@ class MorseCode:
     @staticmethod
     def _run_lengths(mask: np.ndarray) -> List[Tuple[bool, int]]:
         runs: List[Tuple[bool, int]] = []
+        if mask.size == 0:
+            return runs
         cur_val, cur_len = bool(mask[0]), 1
 
         for val in mask[1:]:
@@ -249,7 +251,7 @@ class MorseCode:
             return ""
 
         # Hysteresis: rise on hi, fall on lo
-        thr_hi = float(np.percentile(env, 85))
+        thr_hi = 0.5 * float(np.max(env))
         if thr_hi <= 0:
             return ""
         thr_lo = 0.6 * thr_hi
@@ -279,6 +281,13 @@ class MorseCode:
         if runs and runs[0][1] < 3:
             runs = runs[1:]
         if runs and runs[-1][1] < 3:
+            runs = runs[:-1]
+        if not runs:
+            return ""
+
+        while runs and not runs[0][0]:
+            runs = runs[1:]
+        while runs and not runs[-1][0]:
             runs = runs[:-1]
         if not runs:
             return ""
