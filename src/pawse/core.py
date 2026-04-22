@@ -10,7 +10,10 @@ import scipy.io.wavfile as wavfile
 
 try:
     import sounddevice as sd  # type: ignore
-except (ModuleNotFoundError, OSError):  # sound playback is optional; OSError when PortAudio missing
+except (
+    ModuleNotFoundError,
+    OSError,
+):  # sound playback is optional; OSError when PortAudio missing
     sd = None  # pragma: no cover
 
 
@@ -104,7 +107,7 @@ def _farnsworth_scale(wpm: float, fs: float | None) -> float:
 
 
 @dataclass(slots=True)
-class MorseCode:
+class Codec:
     """Encode text to decode WAV for Morse code"""
 
     wpm: float = 25.0

@@ -6,13 +6,13 @@ import tempfile
 import numpy as np
 import pytest
 
-from pymorse import MorseCode
-from pymorse.core import FORWARD_TABLE, REVERSE_TABLE, _farnsworth_scale, _wpm_to_dps
+from pawse import Codec
+from pawse.core import FORWARD_TABLE, REVERSE_TABLE, _farnsworth_scale, _wpm_to_dps
 
 
-def mc(**kw) -> MorseCode:
+def mc(**kw) -> Codec:
     kw.setdefault("fs", None)
-    return MorseCode(**kw)
+    return Codec(**kw)
 
 
 class TestTables:
@@ -129,7 +129,7 @@ class TestAudioGeneration:
 class TestWavRoundTrip:
     def _roundtrip(self, text: str, **kw) -> str:
         kw.setdefault("fs", None)
-        m = MorseCode(**kw)
+        m = Codec(**kw)
         with tempfile.TemporaryDirectory() as td:
             path = m.to_wav(pathlib.Path(td) / "test", text)
             return m.from_wav(path)
@@ -186,10 +186,10 @@ class TestEnvFollow:
 class TestRunLengths:
     def test_basic(self):
         mask = np.array([True, True, False, False, False, True])
-        assert MorseCode._run_lengths(mask) == [(True, 2), (False, 3), (True, 1)]
+        assert Codec._run_lengths(mask) == [(True, 2), (False, 3), (True, 1)]
 
     def test_single(self):
-        assert MorseCode._run_lengths(np.array([False])) == [(False, 1)]
+        assert Codec._run_lengths(np.array([False])) == [(False, 1)]
 
     def test_empty(self):
-        assert MorseCode._run_lengths(np.array([], dtype=bool)) == []
+        assert Codec._run_lengths(np.array([], dtype=bool)) == []

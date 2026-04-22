@@ -40,9 +40,9 @@ pip install "git+https://github.com/fluffy-awoo/pawse.git[audio]"
 ## Quick Start
 
 ```py
-from pymorse import MorseCode
+from pawse import Codec
 
-mc = MorseCode(wpm=20, hz=750)
+mc = Codec(wpm=20, hz=750)
 
 # text to WAV
 mc.to_wav("output.wav", "SOS")
