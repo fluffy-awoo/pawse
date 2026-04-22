@@ -21,7 +21,7 @@
 |              | `scipy`           | ≥ 1.10                 |
 | **Optional** | `sounddevice`     | ≥ 0.4 &nbsp;*(audio playback)* |
 
-Python **3.9+** required.
+Python **3.10+** required.
 
 ---
 
