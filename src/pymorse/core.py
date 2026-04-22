@@ -10,7 +10,7 @@ import scipy.io.wavfile as wavfile
 
 try:
     import sounddevice as sd  # type: ignore
-except ModuleNotFoundError:  # sound playback is optional
+except (ModuleNotFoundError, OSError):  # sound playback is optional; OSError when PortAudio missing
     sd = None  # pragma: no cover
 
 
