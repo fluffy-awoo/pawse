@@ -1,7 +1,6 @@
 # pawse
 
 > **A minimal pure-Python Morse-code encoder/decoder**
-> MIT-licensed.
 
 ---
 
@@ -15,10 +14,10 @@
 
 ## Requirements
 
-|   Purpose    |      Package      |         Version        |
-|--------------|-------------------|------------------------|
-|   **Core**   | `numpy`           | ≥ 2.0.0                |
-|              | `scipy`           | ≥ 1.10                 |
+|   Purpose    |      Package      |         Version                |
+|--------------|-------------------|--------------------------------|
+|   **Core**   | `numpy`           | ≥ 2.0.0                        |
+|              | `scipy`           | ≥ 1.10                         |
 | **Optional** | `sounddevice`     | ≥ 0.4 &nbsp;*(audio playback)* |
 
 Python **3.10+** required.
@@ -42,10 +41,10 @@ pip install "git+https://github.com/fluffy-awoo/pawse.git[audio]"
 ```py
 from pawse import Codec
 
-mc = Codec(wpm=20, hz=750)
+mc = Codec(wpm=20, frequency=750)
 
 # text to WAV
-mc.to_wav("output.wav", "SOS")
+mc.to_wav("SOS", "output.wav")
 
 # WAV to text
 print(mc.from_wav("output.wav"))

@@ -196,9 +196,11 @@ class Codec:
     def to_audio(self, text: str) -> np.ndarray:
         return self._bool_arr_to_tone(self._morse_to_bool_arr(self.to_morse(text)))
 
-    def to_wav(self, path: str | pathlib.Path, text: str) -> pathlib.Path:
+    def to_wav(self, text: str, path: str | pathlib.Path) -> pathlib.Path:
         path = pathlib.Path(path).with_suffix(".wav")
-        wavfile.write(path, self.sample_rate, (self.to_audio(text) * 32767).astype(np.int16))
+        wavfile.write(
+            path, self.sample_rate, (self.to_audio(text) * 32767).astype(np.int16)
+        )
 
         return path
 
@@ -228,9 +230,6 @@ class Codec:
         runs.append((cur_val, cur_len))
 
         return runs
-
-    def _auto_threshold(self, env: np.ndarray) -> float:
-        return (np.median(env) + np.max(env)) / 2.0
 
     def from_audio(self, audio: np.ndarray, sample_rate: int) -> str:
         """Decode audio ndarray (mono or stereo) to plaintext"""
@@ -335,7 +334,9 @@ class Codec:
             # so derive the 5-dot midpoint from the configured fs.
             scale = _farnsworth_scale(self.wpm, self.farnsworth_wpm)
             single_gap_cut = 5.0 * dot_len * scale
-            char_word_cut = single_gap_cut if letterish[0] >= single_gap_cut else float("inf")
+            char_word_cut = (
+                single_gap_cut if letterish[0] >= single_gap_cut else float("inf")
+            )
         else:
             ratios = letterish[1:] / letterish[:-1]
             i = int(np.argmax(ratios))

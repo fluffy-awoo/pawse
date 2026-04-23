@@ -131,7 +131,7 @@ class TestWavRoundTrip:
         kw.setdefault("farnsworth_wpm", None)
         m = Codec(**kw)
         with tempfile.TemporaryDirectory() as td:
-            path = m.to_wav(pathlib.Path(td) / "test", text)
+            path = m.to_wav(text, pathlib.Path(td) / "test")
             return m.from_wav(path)
 
     def test_sos(self):
@@ -170,13 +170,13 @@ class TestWavRoundTrip:
     def test_roundtrip_with_farnsworth(self):
         m = Codec(wpm=25.0, farnsworth_wpm=10.0)
         with tempfile.TemporaryDirectory() as td:
-            path = m.to_wav(pathlib.Path(td) / "f", "HELLO WORLD")
+            path = m.to_wav("HELLO WORLD", pathlib.Path(td) / "f")
             assert m.from_wav(path) == "HELLO WORLD"
 
     def test_to_wav_returns_path_with_wav_suffix(self):
         m = mc()
         with tempfile.TemporaryDirectory() as td:
-            p = m.to_wav(pathlib.Path(td) / "out", "E")
+            p = m.to_wav("E", pathlib.Path(td) / "out")
             assert p.suffix == ".wav"
             assert p.exists()
 
@@ -226,7 +226,9 @@ class TestSelfConsistency:
         return msgs
 
     @staticmethod
-    def _accuracy(codec: Codec, msgs: list[str], noise_db: float | None = None, seed: int = 0) -> float:
+    def _accuracy(
+        codec: Codec, msgs: list[str], noise_db: float | None = None, seed: int = 0
+    ) -> float:
         rng = np.random.default_rng(seed)
         ok = 0
         for text in msgs:
@@ -242,12 +244,12 @@ class TestSelfConsistency:
     @pytest.mark.parametrize(
         "name,codec_kwargs,noise_db,floor",
         [
-            ("default",      dict(wpm=25),          None, 0.98),
-            ("slow",         dict(wpm=15),          None, 0.98),
-            ("fast",         dict(wpm=35),          None, 0.98),
-            ("farnsworth",   dict(wpm=25, farnsworth_wpm=10),   None, 0.98),
-            ("snr_20db",     dict(wpm=25),          20.0, 0.98),
-            ("snr_10db",     dict(wpm=25),          10.0, 0.95),
+            ("default", dict(wpm=25), None, 0.98),
+            ("slow", dict(wpm=15), None, 0.98),
+            ("fast", dict(wpm=35), None, 0.98),
+            ("farnsworth", dict(wpm=25, farnsworth_wpm=10), None, 0.98),
+            ("snr_20db", dict(wpm=25), 20.0, 0.98),
+            ("snr_10db", dict(wpm=25), 10.0, 0.95),
         ],
     )
     def test_accuracy_floor(self, name, codec_kwargs, noise_db, floor):
