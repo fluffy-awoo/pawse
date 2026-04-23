@@ -3,7 +3,6 @@ from __future__ import annotations
 import math
 import pathlib
 from dataclasses import dataclass
-from typing import Dict, List, Tuple
 
 import numpy as np
 import scipy.io.wavfile as wavfile
@@ -23,7 +22,7 @@ DASH_WIDTH = 3  # dash is 3 dots
 CHAR_SPACE = 3  # dots between letters (PARIS timing)
 WORD_SPACE = 7  # dots between words
 
-FORWARD_TABLE: Dict[str, str] = {
+FORWARD_TABLE: dict[str, str] = {
     "A": ".-",
     "B": "-...",
     "C": "-.-.",
@@ -79,7 +78,7 @@ FORWARD_TABLE: Dict[str, str] = {
     "$": "...-..-",
     "@": ".--.-.",
 }
-REVERSE_TABLE: Dict[str, str] = {v: k for k, v in FORWARD_TABLE.items()}
+REVERSE_TABLE: dict[str, str] = {v: k for k, v in FORWARD_TABLE.items()}
 
 
 def _wpm_to_dps(wpm: float) -> float:
@@ -111,13 +110,13 @@ class Codec:
     """Encode text to decode WAV for Morse code"""
 
     wpm: float = 25.0
-    hz: float = 750.0
-    fs: float | None = 10.0  # Farnsworth overall speed (wpm units)
-    sps: int = 8_000  # samples-per-second
+    frequency: float = 750.0
+    farnsworth_wpm: float | None = 10.0
+    sample_rate: int = 8_000
     volume: float = 0.9
     click_smooth: int = 2
 
-    def encode(self, text: str) -> str:
+    def to_morse(self, text: str) -> str:
         """ASCII to Morse symbols with single/double spaces for gaps"""
         return " ".join(
             self._letter_to_morse(ch)
@@ -130,11 +129,11 @@ class Codec:
 
     def _morse_to_bool_arr(self, code: str) -> np.ndarray:
         dps = _wpm_to_dps(self.wpm)
-        base = self.sps / dps
+        base = self.sample_rate / dps
         sp_dot = int(round(base))
         sp_dash = int(round(base * DASH_WIDTH))
         sp_gap_elem = int(round(base))
-        scale = _farnsworth_scale(self.wpm, self.fs)
+        scale = _farnsworth_scale(self.wpm, self.farnsworth_wpm)
         sp_gap_char = int(round(base * CHAR_SPACE * scale))
         sp_gap_word = int(round(base * WORD_SPACE * scale))
 
@@ -144,7 +143,7 @@ class Codec:
         gap_char = np.zeros(sp_gap_char, dtype=np.bool_)
         gap_word = np.zeros(sp_gap_word, dtype=np.bool_)
 
-        out: List[np.ndarray] = []
+        out: list[np.ndarray] = []
         prev_elem = prev_space = False
 
         for symbol in code:
@@ -169,7 +168,7 @@ class Codec:
         if mask.size == 0:
             return np.array([], dtype=np.float32)
 
-        wt_len = int(self.click_smooth * self.sps / self.hz)
+        wt_len = int(self.click_smooth * self.sample_rate / self.frequency)
 
         if wt_len % 2 == 0:
             wt_len += 1
@@ -179,7 +178,7 @@ class Codec:
         )
         weights = weights / weights.sum()
 
-        pad = int(self.sps * 0.5) + (wt_len - 1) // 2  # 0.5 s leading pad
+        pad = int(self.sample_rate * 0.5) + (wt_len - 1) // 2  # 0.5 s leading pad
         padded = np.concatenate(
             (np.zeros(pad, dtype=np.bool_), mask, np.zeros(pad, dtype=np.bool_))
         )
@@ -190,16 +189,16 @@ class Codec:
         )
 
         t = np.arange(smooth.size, dtype=np.float32)
-        tone = np.sin(t * (self.hz * 2 * math.pi / self.sps))
+        tone = np.sin(t * (self.frequency * 2 * math.pi / self.sample_rate))
 
         return (tone * smooth * self.volume).astype(np.float32)
 
     def to_audio(self, text: str) -> np.ndarray:
-        return self._bool_arr_to_tone(self._morse_to_bool_arr(self.encode(text)))
+        return self._bool_arr_to_tone(self._morse_to_bool_arr(self.to_morse(text)))
 
     def to_wav(self, path: str | pathlib.Path, text: str) -> pathlib.Path:
         path = pathlib.Path(path).with_suffix(".wav")
-        wavfile.write(path, self.sps, (self.to_audio(text) * 32767).astype(np.int16))
+        wavfile.write(path, self.sample_rate, (self.to_audio(text) * 32767).astype(np.int16))
 
         return path
 
@@ -207,14 +206,14 @@ class Codec:
         if sd is None:
             raise RuntimeError("sounddevice not installed")
 
-        sd.play(self.to_audio(text).astype(np.float32), self.sps)
+        sd.play(self.to_audio(text).astype(np.float32), self.sample_rate)
 
     def _env_follow(self, sig: np.ndarray, win: int) -> np.ndarray:
         return np.convolve(np.abs(sig), np.ones(win, dtype=np.float32) / win, "same")
 
     @staticmethod
-    def _run_lengths(mask: np.ndarray) -> List[Tuple[bool, int]]:
-        runs: List[Tuple[bool, int]] = []
+    def _run_lengths(mask: np.ndarray) -> list[tuple[bool, int]]:
+        runs: list[tuple[bool, int]] = []
         if mask.size == 0:
             return runs
         cur_val, cur_len = bool(mask[0]), 1
@@ -233,7 +232,7 @@ class Codec:
     def _auto_threshold(self, env: np.ndarray) -> float:
         return (np.median(env) + np.max(env)) / 2.0
 
-    def _from_audio(self, audio: np.ndarray, sample_rate: int) -> str:
+    def from_audio(self, audio: np.ndarray, sample_rate: int) -> str:
         """Decode audio ndarray (mono or stereo) to plaintext"""
         if audio.ndim > 1:
             audio = audio.mean(axis=1)
@@ -275,11 +274,6 @@ class Codec:
         if not runs:
             return ""
 
-        on = np.array([L for is_tone, L in runs if is_tone], dtype=float)
-        off = np.array([L for is_tone, L in runs if not is_tone], dtype=float)
-        if on.size == 0:
-            return ""
-
         # Drop extremely short leading/trailing runs (edge artifacts)
         if runs and runs[0][1] < 3:
             runs = runs[1:]
@@ -295,7 +289,6 @@ class Codec:
         if not runs:
             return ""
 
-        # Recompute arrays after trimming
         on = np.array([L for is_tone, L in runs if is_tone], dtype=float)
         off = np.array([L for is_tone, L in runs if not is_tone], dtype=float)
         if on.size == 0:
@@ -317,7 +310,7 @@ class Codec:
         if bimodal_idx >= 0:
             dot_len = float(sorted_on[bimodal_idx])
         else:
-            expected_dot = self.sps / _wpm_to_dps(self.wpm)
+            expected_dot = self.sample_rate / _wpm_to_dps(self.wpm)
             median_on = float(np.median(sorted_on))
             if abs(median_on - expected_dot) <= abs(median_on - 3 * expected_dot):
                 dot_len = median_on
@@ -340,7 +333,7 @@ class Codec:
             # clearly longer than a letter gap. Farnsworth scaling stretches
             # both letter (3-dot) and word (7-dot) gaps by the same factor,
             # so derive the 5-dot midpoint from the configured fs.
-            scale = _farnsworth_scale(self.wpm, self.fs)
+            scale = _farnsworth_scale(self.wpm, self.farnsworth_wpm)
             single_gap_cut = 5.0 * dot_len * scale
             char_word_cut = single_gap_cut if letterish[0] >= single_gap_cut else float("inf")
         else:
@@ -354,7 +347,7 @@ class Codec:
         # Tone classification margin: allow for slightly stretched dots
         dot_dash_cut = 1.8 * dot_len
 
-        symbols: List[str] = []
+        symbols: list[str] = []
         for is_tone, L in runs:
             if is_tone:
                 symbols.append(DOT if L < dot_dash_cut else DASH)
@@ -371,7 +364,7 @@ class Codec:
         return self._morse_to_text(code)
 
     def _morse_to_text(self, code: str) -> str:
-        words: List[str] = []
+        words: list[str] = []
 
         for word in code.split("  "):
             letters = [REVERSE_TABLE.get(sym, "?") for sym in word.split() if sym]
@@ -382,7 +375,7 @@ class Codec:
     def from_wav(self, path: str | pathlib.Path) -> str:
         sr, data = wavfile.read(path)
 
-        return self._from_audio(data, sr)
+        return self.from_audio(data, sr)
 
-    def decode(self, code: str) -> str:  # kept for API compat
+    def from_morse(self, code: str) -> str:
         return self._morse_to_text(code)

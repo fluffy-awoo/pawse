@@ -20,6 +20,6 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
-      - run: pip install ".[audio]" pytest
+      - run: pip install ".[audio]" pytest pytest-xdist
 
-      - run: pytest -v
+      - run: pytest -v -n auto

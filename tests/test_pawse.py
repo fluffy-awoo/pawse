@@ -11,7 +11,7 @@ from pawse.core import FORWARD_TABLE, REVERSE_TABLE, _farnsworth_scale, _wpm_to_
 
 
 def mc(**kw) -> Codec:
-    kw.setdefault("fs", None)
+    kw.setdefault("farnsworth_wpm", None)
     return Codec(**kw)
 
 
@@ -41,66 +41,66 @@ class TestTimingHelpers:
         assert _farnsworth_scale(25.0, None) == pytest.approx(1.0)
 
 
-class TestEncode:
+class TestToMorse:
     def test_single_letters(self):
         m = mc()
-        assert m.encode("E") == "."
-        assert m.encode("T") == "-"
-        assert m.encode("A") == ".-"
-        assert m.encode("S") == "..."
-        assert m.encode("O") == "---"
+        assert m.to_morse("E") == "."
+        assert m.to_morse("T") == "-"
+        assert m.to_morse("A") == ".-"
+        assert m.to_morse("S") == "..."
+        assert m.to_morse("O") == "---"
 
     def test_case_insensitive(self):
         m = mc()
-        assert m.encode("sos") == m.encode("SOS")
+        assert m.to_morse("sos") == m.to_morse("SOS")
 
     def test_word_space(self):
         m = mc()
-        assert "  " in m.encode("E T")
+        assert "  " in m.to_morse("E T")
 
     def test_multi_word(self):
         m = mc()
-        assert len(m.encode("HI HI").split("  ")) == 2
+        assert len(m.to_morse("HI HI").split("  ")) == 2
 
     def test_unknown_chars_skipped(self):
         m = mc()
-        assert m.encode("~") == ""
-        assert m.encode("A~B") == m.encode("AB")
+        assert m.to_morse("~") == ""
+        assert m.to_morse("A~B") == m.to_morse("AB")
 
     def test_empty_string(self):
-        assert mc().encode("") == ""
+        assert mc().to_morse("") == ""
 
     def test_digits(self):
         m = mc()
-        assert m.encode("0") == "-----"
-        assert m.encode("9") == "----."
+        assert m.to_morse("0") == "-----"
+        assert m.to_morse("9") == "----."
 
     def test_punctuation(self):
         m = mc()
-        assert m.encode(".") == ".-.-.-"
-        assert m.encode("?") == "..--.."
+        assert m.to_morse(".") == ".-.-.-"
+        assert m.to_morse("?") == "..--.."
 
 
-class TestDecode:
+class TestFromMorse:
     def test_single_letters(self):
         m = mc()
-        assert m.decode(".") == "E"
-        assert m.decode("-") == "T"
-        assert m.decode(".-") == "A"
+        assert m.from_morse(".") == "E"
+        assert m.from_morse("-") == "T"
+        assert m.from_morse(".-") == "A"
 
     def test_word_gap(self):
-        assert mc().decode(".  -") == "E T"
+        assert mc().from_morse(".  -") == "E T"
 
     def test_unknown_symbol_replaced_with_question_mark(self):
-        assert mc().decode("......") == "?"
+        assert mc().from_morse("......") == "?"
 
-    def test_empty_decode(self):
-        assert mc().decode("") == ""
+    def test_empty(self):
+        assert mc().from_morse("") == ""
 
-    def test_roundtrip_encode_decode(self):
+    def test_roundtrip(self):
         m = mc()
         for text in ("SOS", "HELLO", "CQ CQ", "0 1 2"):
-            assert m.decode(m.encode(text)) == text
+            assert m.from_morse(m.to_morse(text)) == text
 
 
 class TestAudioGeneration:
@@ -128,7 +128,7 @@ class TestAudioGeneration:
 
 class TestWavRoundTrip:
     def _roundtrip(self, text: str, **kw) -> str:
-        kw.setdefault("fs", None)
+        kw.setdefault("farnsworth_wpm", None)
         m = Codec(**kw)
         with tempfile.TemporaryDirectory() as td:
             path = m.to_wav(pathlib.Path(td) / "test", text)
@@ -168,7 +168,7 @@ class TestWavRoundTrip:
         assert self._roundtrip("CQ DE K1ABC", wpm=wpm) == "CQ DE K1ABC"
 
     def test_roundtrip_with_farnsworth(self):
-        m = Codec(wpm=25.0, fs=10.0)
+        m = Codec(wpm=25.0, farnsworth_wpm=10.0)
         with tempfile.TemporaryDirectory() as td:
             path = m.to_wav(pathlib.Path(td) / "f", "HELLO WORLD")
             assert m.from_wav(path) == "HELLO WORLD"
@@ -235,7 +235,7 @@ class TestSelfConsistency:
                 rms = float(np.sqrt(np.mean(audio**2))) or 1e-9
                 noise = rng.standard_normal(audio.size).astype(np.float32)
                 audio = audio + noise * rms * 10 ** (-noise_db / 20)
-            if codec._from_audio(audio, codec.sps) == text:
+            if codec.from_audio(audio, codec.sample_rate) == text:
                 ok += 1
         return ok / len(msgs)
 
@@ -245,13 +245,13 @@ class TestSelfConsistency:
             ("default",      dict(wpm=25),          None, 0.98),
             ("slow",         dict(wpm=15),          None, 0.98),
             ("fast",         dict(wpm=35),          None, 0.98),
-            ("farnsworth",   dict(wpm=25, fs=10),   None, 0.98),
+            ("farnsworth",   dict(wpm=25, farnsworth_wpm=10),   None, 0.98),
             ("snr_20db",     dict(wpm=25),          20.0, 0.98),
             ("snr_10db",     dict(wpm=25),          10.0, 0.95),
         ],
     )
     def test_accuracy_floor(self, name, codec_kwargs, noise_db, floor):
-        codec_kwargs.setdefault("fs", None)
+        codec_kwargs.setdefault("farnsworth_wpm", None)
         acc = self._accuracy(
             Codec(**codec_kwargs), self._messages(seed=42), noise_db=noise_db, seed=1
         )
