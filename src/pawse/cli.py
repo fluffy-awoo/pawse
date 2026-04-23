@@ -16,16 +16,35 @@ def _codec(args: argparse.Namespace) -> Codec:
 
 
 def _add_codec_args(p: argparse.ArgumentParser) -> None:
-    p.add_argument("--wpm", type=float, default=25.0, metavar="WPM")
-    p.add_argument("--frequency", type=float, default=750.0, metavar="HZ")
+    p.add_argument(
+        "--wpm",
+        type=float,
+        default=25.0,
+        metavar="WPM",
+        help="character speed in words per minute (default: 25)",
+    )
+    p.add_argument(
+        "--frequency",
+        type=float,
+        default=750.0,
+        metavar="HZ",
+        help="tone frequency in Hz (default: 750)",
+    )
     p.add_argument(
         "--farnsworth-wpm",
         type=float,
         default=None,
         metavar="WPM",
         dest="farnsworth_wpm",
+        help="overall speed in wpm — stretches gaps only, keeping characters at --wpm",
     )
-    p.add_argument("--volume", type=float, default=0.9, metavar="VOL")
+    p.add_argument(
+        "--volume",
+        type=float,
+        default=0.9,
+        metavar="VOL",
+        help="output volume 0.0–1.0 (default: 0.9)",
+    )
 
 
 def cmd_encode(args: argparse.Namespace) -> None:

@@ -1,6 +1,6 @@
 # pawse
 
-> **A minimal pure-Python Morse-code encoder/decoder**
+> **A minimal python Morse-code encoder/decoder**
 
 ---
 
@@ -14,11 +14,11 @@
 
 ## Requirements
 
-|   Purpose    |      Package      |         Version                |
-|--------------|-------------------|--------------------------------|
-|   **Core**   | `numpy`           | ≥ 2.0.0                        |
-|              | `scipy`           | ≥ 1.10                         |
-| **Optional** | `sounddevice`     | ≥ 0.4 &nbsp;*(audio playback)* |
+|   Purpose    |      Package      |         Version                 |
+|--------------|-------------------|---------------------------------|
+|   **Core**   | `numpy`           | >= 2.0.0                        |
+|              | `scipy`           | >= 1.10                         |
+| **Optional** | `sounddevice`     | >= 0.4 &nbsp;*(audio playback)* |
 
 Python **3.10+** required.
 
@@ -36,7 +36,7 @@ pip install "git+https://github.com/fluffy-awoo/pawse.git[audio]"
 
 ---
 
-## Quick Start
+## Example
 
 ```py
 from pawse import Codec
