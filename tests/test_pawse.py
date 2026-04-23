@@ -140,10 +140,6 @@ class TestWavRoundTrip:
     def test_single_letter_e(self):
         assert self._roundtrip("E") == "E"
 
-    @pytest.mark.xfail(
-        reason="Single dash has no reference dot; decoder calibrates dot_len from the dash and misclassifies it.",
-        strict=True,
-    )
     def test_single_letter_t(self):
         assert self._roundtrip("T") == "T"
 
@@ -152,6 +148,30 @@ class TestWavRoundTrip:
 
     def test_two_words(self):
         assert self._roundtrip("HI HI") == "HI HI"
+
+    @pytest.mark.parametrize("text", ["MOM", "TOO", "OM", "OOO"])
+    def test_all_dash_letters(self, text):
+        assert self._roundtrip(text) == text
+
+    @pytest.mark.parametrize("text", ["EEE", "IE", "EIE"])
+    def test_all_dot_letters(self, text):
+        assert self._roundtrip(text) == text
+
+    def test_pangram(self):
+        assert self._roundtrip("THE QUICK BROWN FOX") == "THE QUICK BROWN FOX"
+
+    def test_digits_roundtrip(self):
+        assert self._roundtrip("73 88") == "73 88"
+
+    @pytest.mark.parametrize("wpm", [15.0, 20.0, 30.0])
+    def test_roundtrip_various_wpm(self, wpm):
+        assert self._roundtrip("CQ DE K1ABC", wpm=wpm) == "CQ DE K1ABC"
+
+    def test_roundtrip_with_farnsworth(self):
+        m = Codec(wpm=25.0, fs=10.0)
+        with tempfile.TemporaryDirectory() as td:
+            path = m.to_wav(pathlib.Path(td) / "f", "HELLO WORLD")
+            assert m.from_wav(path) == "HELLO WORLD"
 
     def test_to_wav_returns_path_with_wav_suffix(self):
         m = mc()
@@ -181,6 +201,61 @@ class TestEnvFollow:
     def test_zero_signal(self):
         env = mc()._env_follow(np.zeros(100, dtype=np.float32), 10)
         np.testing.assert_allclose(env, 0.0)
+
+
+class TestSelfConsistency:
+    """Regression benchmarks: encode then decode N random messages and
+    assert exact-match accuracy stays above a floor per config. Seeds are
+    fixed so this is deterministic across CI runs."""
+
+    N = 200
+
+    @staticmethod
+    def _messages(seed: int) -> list[str]:
+        import random
+
+        rng = random.Random(seed)
+        alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+        msgs = []
+        for _ in range(TestSelfConsistency.N):
+            words = [
+                "".join(rng.choice(alphabet) for _ in range(rng.randint(1, 6)))
+                for _ in range(rng.randint(1, 5))
+            ]
+            msgs.append(" ".join(words))
+        return msgs
+
+    @staticmethod
+    def _accuracy(codec: Codec, msgs: list[str], noise_db: float | None = None, seed: int = 0) -> float:
+        rng = np.random.default_rng(seed)
+        ok = 0
+        for text in msgs:
+            audio = codec.to_audio(text)
+            if noise_db is not None and audio.size:
+                rms = float(np.sqrt(np.mean(audio**2))) or 1e-9
+                noise = rng.standard_normal(audio.size).astype(np.float32)
+                audio = audio + noise * rms * 10 ** (-noise_db / 20)
+            if codec._from_audio(audio, codec.sps) == text:
+                ok += 1
+        return ok / len(msgs)
+
+    @pytest.mark.parametrize(
+        "name,codec_kwargs,noise_db,floor",
+        [
+            ("default",      dict(wpm=25),          None, 0.98),
+            ("slow",         dict(wpm=15),          None, 0.98),
+            ("fast",         dict(wpm=35),          None, 0.98),
+            ("farnsworth",   dict(wpm=25, fs=10),   None, 0.98),
+            ("snr_20db",     dict(wpm=25),          20.0, 0.98),
+            ("snr_10db",     dict(wpm=25),          10.0, 0.95),
+        ],
+    )
+    def test_accuracy_floor(self, name, codec_kwargs, noise_db, floor):
+        codec_kwargs.setdefault("fs", None)
+        acc = self._accuracy(
+            Codec(**codec_kwargs), self._messages(seed=42), noise_db=noise_db, seed=1
+        )
+        assert acc >= floor, f"{name}: {acc:.1%} < floor {floor:.0%}"
 
 
 class TestRunLengths:

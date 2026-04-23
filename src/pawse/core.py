@@ -301,27 +301,55 @@ class Codec:
         if on.size == 0:
             return ""
 
-        # Estimate dot length: short tones cluster
-        dot_len = float(np.percentile(on, 20))
+        # Estimate dot length. Sort tone lengths and find the largest
+        # consecutive ratio jump — that jump is the dot/dash cluster boundary
+        # (theoretical 3:1). Robust to class imbalance (e.g. 'Q' = --.- has
+        # only one dot among three dashes, where percentile estimators drift).
+        # If no clear jump exists the signal is unimodal: fall back to the
+        # expected dot length from self.wpm to decide all-dots vs all-dashes.
+        sorted_on = np.sort(on)
+        bimodal_idx = -1
+        if sorted_on.size >= 2:
+            on_ratios = sorted_on[1:] / sorted_on[:-1]
+            j = int(np.argmax(on_ratios))
+            if on_ratios[j] >= 1.6:
+                bimodal_idx = j
+        if bimodal_idx >= 0:
+            dot_len = float(sorted_on[bimodal_idx])
+        else:
+            expected_dot = self.sps / _wpm_to_dps(self.wpm)
+            median_on = float(np.median(sorted_on))
+            if abs(median_on - expected_dot) <= abs(median_on - 3 * expected_dot):
+                dot_len = median_on
+            else:
+                dot_len = median_on / 3.0
 
         # Intra-element cutoff: short "off" inside a character (between dot/dash)
         intra_elem_cut = 1.5 * dot_len
 
-        # Candidate letter/word gaps are off-runs >= intra-element cutoff
-        letterish = off[off >= intra_elem_cut]
+        # Candidate letter/word gaps are off-runs >= intra-element cutoff.
+        # Theoretical ratio is 7:3 (word:letter) = 2.33. Sort and find the
+        # largest consecutive ratio jump; if it's big enough, that jump is
+        # the letter/word cluster boundary. Robust to a single word gap
+        # among many letter gaps, and to median sitting between clusters.
+        letterish = np.sort(off[off >= intra_elem_cut])
         if letterish.size == 0:
-            # Fallback: treat any >= intra-element as letter gap; no words
             char_word_cut = float("inf")
-            char_gap_est = intra_elem_cut * 1.1
+        elif letterish.size == 1:
+            # Single gap — no ratio to compare. Treat as word gap if it's
+            # clearly longer than a letter gap. Farnsworth scaling stretches
+            # both letter (3-dot) and word (7-dot) gaps by the same factor,
+            # so derive the 5-dot midpoint from the configured fs.
+            scale = _farnsworth_scale(self.wpm, self.fs)
+            single_gap_cut = 5.0 * dot_len * scale
+            char_word_cut = single_gap_cut if letterish[0] >= single_gap_cut else float("inf")
         else:
-            # Two clusters: ~3 dot (letter) and ~7 dot (word). Use percentiles.
-            char_gap_est = float(np.percentile(letterish, 30))
-            word_gap_est = float(np.percentile(letterish, 85))
-            # If distribution is unimodal (no clear long gaps), avoid over-splitting
-            if word_gap_est < 1.8 * char_gap_est:
-                char_word_cut = float("inf")  # effectively no word gaps detected
+            ratios = letterish[1:] / letterish[:-1]
+            i = int(np.argmax(ratios))
+            if ratios[i] >= 1.6:
+                char_word_cut = 0.5 * (letterish[i] + letterish[i + 1])
             else:
-                char_word_cut = 0.5 * (char_gap_est + word_gap_est)
+                char_word_cut = float("inf")
 
         # Tone classification margin: allow for slightly stretched dots
         dot_dash_cut = 1.8 * dot_len
