@@ -43,7 +43,7 @@ def _add_codec_args(p: argparse.ArgumentParser) -> None:
         type=float,
         default=0.9,
         metavar="VOL",
-        help="output volume 0.0–1.0 (default: 0.9)",
+        help="output volume 0.0-1.0 (default: 0.9)",
     )
 
 
