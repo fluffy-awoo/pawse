@@ -50,6 +50,12 @@ mc.to_wav("SOS", "output.wav")
 print(mc.from_wav("output.wav"))
 ```
 
+## Documentation
+
+See the [wiki](https://github.com/fluffy-awoo/pawse/wiki) for CLI and API reference.
+
+---
+
 ## Credits
 
 Built on top of [`cduck/morse`](https://github.com/cduck/morse).
